@@ -10,6 +10,8 @@
  *   GET /api/admin/geo-violations     — Region violation attempts
  *   GET /api/admin/agent-status       — Agent approval/status summary
  *   GET /api/admin/audit-log          — Full signed audit trail
+ *   GET /api/admin/severity-distribution — Security severity counts
+ *   GET /api/admin/policy-agent/summary  — Policy agent decision metrics
  */
 
 import { Router, Request, Response } from "express";
@@ -295,6 +297,89 @@ router.get(
       res
         .status(500)
         .json({ error: "Failed to fetch severity distribution" });
+    }
+  }
+);
+
+// ─── GET /api/admin/policy-agent/summary ─────────────────
+// Policy Check Agent governance dashboard.
+// Returns decision distribution and deny reasons.
+
+router.get(
+  "/policy-agent/summary",
+  async (req: Request, res: Response): Promise<void> => {
+    const session = getSession(req);
+    const { from, to } = getDateRange(req);
+
+    try {
+      const result = await withRls(
+        session.tenantId,
+        session.userId,
+        async (tx) => {
+          // Get all policy-check agent logs within the date range.
+          // Filter by agents that have agent_type = 'policy_check'.
+          const logs = await tx
+            .select({
+              decision: agentLogs.decision,
+              decisionReason: agentLogs.decisionReason,
+              createdAt: agentLogs.createdAt,
+            })
+            .from(agentLogs)
+            .innerJoin(agents, eq(agentLogs.agentId, agents.id))
+            .where(
+              and(
+                eq(agents.agentType, "policy_check"),
+                gte(agentLogs.createdAt, from),
+                lte(agentLogs.createdAt, to)
+              )
+            );
+
+          const total = logs.length;
+          const allows = logs.filter((l) => l.decision === "ALLOW").length;
+          const safeStops = logs.filter(
+            (l) => l.decision === "SAFE_STOP"
+          ).length;
+          const denies = logs.filter((l) => l.decision === "DENY").length;
+
+          // Denies grouped by reason
+          const denyReasons: Record<string, number> = {};
+          for (const log of logs) {
+            if (log.decision === "DENY" && log.decisionReason) {
+              denyReasons[log.decisionReason] =
+                (denyReasons[log.decisionReason] || 0) + 1;
+            }
+          }
+
+          // Safe stops grouped by reason
+          const safeStopReasons: Record<string, number> = {};
+          for (const log of logs) {
+            if (log.decision === "SAFE_STOP" && log.decisionReason) {
+              safeStopReasons[log.decisionReason] =
+                (safeStopReasons[log.decisionReason] || 0) + 1;
+            }
+          }
+
+          return {
+            total,
+            allows,
+            safe_stops: safeStops,
+            denies,
+            deny_reasons: denyReasons,
+            safe_stop_reasons: safeStopReasons,
+          };
+        }
+      );
+
+      res.json({
+        data: result,
+        from: from.toISOString(),
+        to: to.toISOString(),
+      });
+    } catch (error) {
+      console.error("[Admin] policy-agent/summary error:", error);
+      res
+        .status(500)
+        .json({ error: "Failed to fetch policy agent summary" });
     }
   }
 );

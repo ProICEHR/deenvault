@@ -15,7 +15,7 @@
 
 import { Request, Response, NextFunction } from "express";
 import { eq } from "drizzle-orm";
-import { db } from "../db";
+import { db, withRls } from "../db";
 import { tenants, securityEvents } from "../../shared/schema";
 import { getSession } from "./session";
 
@@ -76,66 +76,94 @@ export function regionGate(config: RegionConfig) {
     const session = getSession(req);
 
     try {
-      // Fetch tenant's region — using raw db here because
-      // this is a pre-execution governance check.
-      // We need the tenant record regardless of RLS context.
-      const [tenant] = await db
-        .select({
-          id: tenants.id,
-          primaryRegion: tenants.primaryRegion,
-          regionLocked: tenants.regionLocked,
-          status: tenants.status,
-        })
-        .from(tenants)
-        .where(eq(tenants.id, session.tenantId))
-        .limit(1);
+      // Fetch tenant's region WITHIN RLS context.
+      // withRls() sets app.current_tenant so the query is
+      // scoped to the session's tenant. Without this,
+      // FORCE RLS returns zero rows and the gate breaks.
+      const gateResult = await withRls(
+        session.tenantId,
+        session.userId,
+        async (tx) => {
+          const [tenant] = await tx
+            .select({
+              id: tenants.id,
+              primaryRegion: tenants.primaryRegion,
+              regionLocked: tenants.regionLocked,
+              status: tenants.status,
+            })
+            .from(tenants)
+            .where(eq(tenants.id, session.tenantId))
+            .limit(1);
 
-      if (!tenant) {
-        res.status(403).json({
-          error: "Tenant not found",
-          code: "TENANT_NOT_FOUND",
-        });
-        return;
-      }
+          if (!tenant) {
+            return { blocked: true, reason: "TENANT_NOT_FOUND" as const };
+          }
 
-      if (tenant.status !== "active") {
-        res.status(403).json({
-          error: "Tenant is suspended",
-          code: "TENANT_SUSPENDED",
-        });
-        return;
-      }
+          if (tenant.status !== "active") {
+            return { blocked: true, reason: "TENANT_SUSPENDED" as const };
+          }
 
-      // ─── Region enforcement ───────────────────────────
+          // ─── Region enforcement ───────────────────────────
 
-      if (
-        tenant.regionLocked &&
-        tenant.primaryRegion !== config.regionAnchor
-      ) {
-        // Log the violation BEFORE denying
-        await db.insert(securityEvents).values({
-          tenantId: session.tenantId,
-          severity: "CRITICAL",
-          eventType: "GEO_VIOLATION",
-          details: {
-            tenantRegion: tenant.primaryRegion,
+          if (
+            tenant.regionLocked &&
+            tenant.primaryRegion !== config.regionAnchor
+          ) {
+            // Log the violation BEFORE denying — inside RLS context
+            // so the insert satisfies the WITH CHECK policy.
+            await tx.insert(securityEvents).values({
+              tenantId: session.tenantId,
+              severity: "CRITICAL",
+              eventType: "GEO_VIOLATION",
+              details: {
+                tenantRegion: tenant.primaryRegion,
+                deploymentRegion: config.regionAnchor,
+                deploymentId: config.regionId,
+                userId: session.userId,
+                path: req.path,
+                timestamp: new Date().toISOString(),
+              },
+              sourceIp: req.ip || req.socket.remoteAddress || "unknown",
+              userId: session.userId,
+            });
+
+            return {
+              blocked: true,
+              reason: "GEO_VIOLATION" as const,
+              tenantRegion: tenant.primaryRegion,
+            };
+          }
+
+          return { blocked: false };
+        }
+      );
+
+      // ─── Handle gate results outside transaction ──────
+
+      if (gateResult.blocked) {
+        if (gateResult.reason === "TENANT_NOT_FOUND") {
+          res.status(403).json({
+            error: "Tenant not found",
+            code: "TENANT_NOT_FOUND",
+          });
+          return;
+        }
+        if (gateResult.reason === "TENANT_SUSPENDED") {
+          res.status(403).json({
+            error: "Tenant is suspended",
+            code: "TENANT_SUSPENDED",
+          });
+          return;
+        }
+        if (gateResult.reason === "GEO_VIOLATION") {
+          res.status(403).json({
+            error: "Region violation: execution blocked",
+            code: "GEO_VIOLATION",
+            tenantRegion: (gateResult as any).tenantRegion,
             deploymentRegion: config.regionAnchor,
-            deploymentId: config.regionId,
-            userId: session.userId,
-            path: req.path,
-            timestamp: new Date().toISOString(),
-          },
-          sourceIp: req.ip || req.socket.remoteAddress || "unknown",
-          userId: session.userId,
-        });
-
-        res.status(403).json({
-          error: "Region violation: execution blocked",
-          code: "GEO_VIOLATION",
-          tenantRegion: tenant.primaryRegion,
-          deploymentRegion: config.regionAnchor,
-        });
-        return;
+          });
+          return;
+        }
       }
 
       // Attach region config to request for downstream use

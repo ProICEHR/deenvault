@@ -1,0 +1,29 @@
+{
+  "name": "deenvault-governance-engine",
+  "version": "0.1.0",
+  "description": "Sovereign AI Governance Infrastructure for African Institutions",
+  "private": true,
+  "scripts": {
+    "verify": "npx tsx tests/verify-all.ts",
+    "verify:crypto": "npx tsx tests/verify-crypto.test.ts",
+    "verify:replay": "npx tsx tests/verify-replay.test.ts",
+    "verify:session": "npx tsx tests/verify-session.test.ts",
+    "verify:withrls": "npx tsx tests/verify-withRls.test.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.36.0",
+    "express": "^4.21.0",
+    "express-session": "^1.18.0",
+    "pg": "^8.13.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/express-session": "^1.18.0",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.0",
+    "drizzle-kit": "^0.28.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

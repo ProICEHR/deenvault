@@ -11,13 +11,33 @@
  * If a log entry is modified after signing, verification fails.
  */
 
-import { createHash, createHmac } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
+
+// ─── Deterministic JSON Serialization ────────────────────
+// Deep-sorts ALL object keys (not just top-level) to ensure
+// semantically identical objects always produce identical strings.
+
+function canonicalStringify(data: unknown): string {
+  if (data === null || data === undefined) return JSON.stringify(data);
+  if (typeof data !== "object") return JSON.stringify(data);
+  if (Array.isArray(data)) {
+    return "[" + data.map((item) => canonicalStringify(item)).join(",") + "]";
+  }
+  const sortedKeys = Object.keys(data as Record<string, unknown>).sort();
+  const pairs = sortedKeys.map(
+    (key) =>
+      JSON.stringify(key) +
+      ":" +
+      canonicalStringify((data as Record<string, unknown>)[key])
+  );
+  return "{" + pairs.join(",") + "}";
+}
 
 // ─── SHA-256 Hash ────────────────────────────────────────
 
 export function sha256(data: unknown): string {
   const serialized =
-    typeof data === "string" ? data : JSON.stringify(data, Object.keys(data as object).sort());
+    typeof data === "string" ? data : canonicalStringify(data);
   return createHash("sha256").update(serialized, "utf8").digest("hex");
 }
 
@@ -73,14 +93,14 @@ export function hmacVerify(
 ): boolean {
   const expected = hmacSign(payload, key);
 
-  // Constant-time comparison to prevent timing attacks
-  if (expected.length !== signature.length) return false;
+  // Use Node.js built-in constant-time comparison.
+  // Prevents timing side-channel attacks on signature verification.
+  const expectedBuf = Buffer.from(expected, "hex");
+  const signatureBuf = Buffer.from(signature, "hex");
 
-  let result = 0;
-  for (let i = 0; i < expected.length; i++) {
-    result |= expected.charCodeAt(i) ^ signature.charCodeAt(i);
-  }
-  return result === 0;
+  if (expectedBuf.length !== signatureBuf.length) return false;
+
+  return timingSafeEqual(expectedBuf, signatureBuf);
 }
 
 // ─── Full Execution Hash Bundle ──────────────────────────

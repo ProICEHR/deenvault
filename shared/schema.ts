@@ -58,6 +58,11 @@ export const agentStatusEnum = pgEnum("agent_status", [
   "draft",
 ]);
 
+export const agentTypeEnum = pgEnum("agent_type", [
+  "policy_check",
+  "general",
+]);
+
 export const securitySeverityEnum = pgEnum("security_severity", [
   "CRITICAL",
   "HIGH",
@@ -129,6 +134,7 @@ export const agents = pgTable(
       .references(() => tenants.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     description: text("description"),
+    agentType: agentTypeEnum("agent_type").notNull().default("general"),
     immutableObjectiveHash: text("immutable_objective_hash").notNull(),
     policyVersion: text("policy_version").notNull(),
     approved: boolean("approved").notNull().default(false),
@@ -166,6 +172,8 @@ export const agentLogs = pgTable(
       .notNull()
       .references(() => agents.id, { onDelete: "restrict" }),
     requestId: text("request_id").notNull(),
+    decision: text("decision"),
+    decisionReason: text("decision_reason"),
     inputHash: text("input_hash").notNull(),
     outputHash: text("output_hash").notNull(),
     decisionTraceHash: text("decision_trace_hash").notNull(),

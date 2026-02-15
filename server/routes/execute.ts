@@ -41,7 +41,12 @@ import {
   securityEvents,
   executeRequestSchema,
 } from "../../shared/schema";
-import { generateExecutionHashes } from "../crypto";
+import { generateExecutionHashes, hmacVerify, buildCanonicalPayload } from "../crypto";
+import {
+  runPolicyCheckAgent,
+  type PolicyCheckInput,
+  type PolicyCheckOutput,
+} from "../agents/policy-check";
 
 const router = Router();
 const regionConfig = loadRegionConfig();
@@ -164,29 +169,74 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
         }
 
         // ─── 2c. Execute stateless agent logic ───────────
-        // This is where the actual agent computation happens.
-        // In Phase 1, this is a policy-check echo.
-        // In later phases, this calls the AI model with
-        // the agent's frozen objective and policy.
+        // Route to the appropriate agent based on agentType.
+        // Each agent is a pure function: input → output.
+        // No agent code ever calls DB directly.
 
-        const decisionTrace = {
-          agentId: agent.id,
-          agentName: agent.name,
-          objectiveHash: agent.immutableObjectiveHash,
-          policyVersion: agent.policyVersion,
-          inputReceived: true,
-          policyEvaluated: true,
-          executionTimestamp: new Date().toISOString(),
-        };
+        let agentOutput: Record<string, unknown>;
+        let decisionTrace: Record<string, unknown>;
+        let decision: string | undefined;
+        let decisionReason: string | undefined;
 
-        const output = {
-          status: "executed",
-          agentId: agent.id,
-          policyVersion: agent.policyVersion,
-          regionId: region.regionId,
-          message: `Agent "${agent.name}" executed successfully under policy ${agent.policyVersion}`,
-          trace: decisionTrace,
-        };
+        if (agent.agentType === "policy_check") {
+          // Build PolicyCheckInput from the request input
+          const policyInput: PolicyCheckInput = {
+            tenantId: session.tenantId,
+            regionAnchor: region.regionAnchor as "NG" | "EG",
+            consent: !!input.consent,
+            requestText: String(input.requestText || ""),
+            containsPII: !!input.containsPII,
+          };
+
+          const policyResult: PolicyCheckOutput =
+            runPolicyCheckAgent(policyInput);
+
+          decision = policyResult.decision;
+          decisionReason = policyResult.reason;
+
+          agentOutput = {
+            ...policyResult,
+            agentId: agent.id,
+            policyVersion: agent.policyVersion,
+            regionId: region.regionId,
+          };
+
+          decisionTrace = {
+            agentId: agent.id,
+            agentName: agent.name,
+            agentType: agent.agentType,
+            objectiveHash: agent.immutableObjectiveHash,
+            policyVersion: agent.policyVersion,
+            decision: policyResult.decision,
+            reason: policyResult.reason,
+            flags: policyResult.flags,
+            policyAgentVersion: policyResult.policy_version,
+            executionTimestamp: new Date().toISOString(),
+          };
+        } else {
+          // Default: governance echo (for non-policy agents)
+          decisionTrace = {
+            agentId: agent.id,
+            agentName: agent.name,
+            agentType: agent.agentType,
+            objectiveHash: agent.immutableObjectiveHash,
+            policyVersion: agent.policyVersion,
+            inputReceived: true,
+            policyEvaluated: true,
+            executionTimestamp: new Date().toISOString(),
+          };
+
+          agentOutput = {
+            status: "executed",
+            agentId: agent.id,
+            policyVersion: agent.policyVersion,
+            regionId: region.regionId,
+            message: `Agent "${agent.name}" executed successfully under policy ${agent.policyVersion}`,
+            trace: decisionTrace,
+          };
+        }
+
+        const output = agentOutput;
 
         // ─── 2d. Generate cryptographic hashes ───────────
 
@@ -208,13 +258,49 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
           region.hmacRegionKey
         );
 
-        // ─── 2e. Insert signed audit log ─────────────────
+        // ─── 2e. Verify signature integrity ───────────────
+        // Immediately verify the HMAC we just generated.
+        // If verification fails, something is critically wrong.
+
+        const signatureValid = hmacVerify(
+          hashes.canonicalPayload,
+          hashes.hmacSignature,
+          region.hmacRegionKey
+        );
+
+        if (!signatureValid) {
+          await tx.insert(securityEvents).values({
+            tenantId: session.tenantId,
+            severity: "CRITICAL",
+            eventType: "SESSION_TAMPER",
+            details: {
+              reason: "HMAC signature self-verification failed",
+              agentId: agent.id,
+              requestId: replay.requestId,
+              timestamp: new Date().toISOString(),
+            },
+            sourceIp: req.ip || "unknown",
+            userId: session.userId,
+          });
+
+          return {
+            status: 500,
+            body: {
+              error: "Audit integrity check failed",
+              code: "SIGNATURE_VERIFICATION_FAILED",
+            },
+          };
+        }
+
+        // ─── 2f. Insert signed audit log ─────────────────
 
         await tx.insert(agentLogs).values({
           tenantId: session.tenantId,
           userId: session.userId,
           agentId: agent.id,
           requestId: replay.requestId,
+          decision: decision || null,
+          decisionReason: decisionReason || null,
           inputHash: hashes.inputHash,
           outputHash: hashes.outputHash,
           decisionTraceHash: hashes.decisionTraceHash,
@@ -225,7 +311,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
           hmacKeyVersion: region.hmacKeyVersion,
         });
 
-        // ─── 2f. Return result ───────────────────────────
+        // ─── 2g. Return result ───────────────────────────
 
         return {
           status: 200,
@@ -235,12 +321,14 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
             agentId: agent.id,
             policyVersion: agent.policyVersion,
             regionId: region.regionId,
+            decision: decision || null,
             output,
             audit: {
               inputHash: hashes.inputHash,
               outputHash: hashes.outputHash,
               hmacKeyVersion: region.hmacKeyVersion,
               signed: true,
+              signatureVerified: true,
             },
           },
         };
@@ -287,18 +375,21 @@ async function logSecurityEvent(
   }
 ): Promise<void> {
   try {
-    const { db } = await import("../db");
-    await db.insert(securityEvents).values({
-      tenantId,
-      severity: event.severity,
-      eventType: event.eventType as any,
-      details: {
-        requestId: event.requestId,
+    // Must use withRls() — FORCE RLS blocks direct inserts
+    // without app.current_tenant context.
+    await withRls(tenantId, userId, async (tx) => {
+      await tx.insert(securityEvents).values({
+        tenantId,
+        severity: event.severity,
+        eventType: event.eventType as any,
+        details: {
+          requestId: event.requestId,
+          userId,
+          timestamp: new Date().toISOString(),
+        },
+        sourceIp: event.sourceIp,
         userId,
-        timestamp: new Date().toISOString(),
-      },
-      sourceIp: event.sourceIp,
-      userId,
+      });
     });
   } catch (err) {
     console.error("[Execute] Failed to log security event:", err);
