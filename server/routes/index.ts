@@ -1,7 +1,8 @@
 /**
  * DeenVault AI Agents — Route Registry
  *
- * Mounts all API routes onto the Express app.
+ * Mounts governance API routes onto the Express app.
+ * Auth routes (/api/auth/*) are mounted separately in server/index.ts.
  */
 
 import { Express } from "express";

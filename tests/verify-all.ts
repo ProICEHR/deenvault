@@ -27,6 +27,7 @@ const suites = [
   { name: "Session Enforcement", file: "verify-session.test.ts" },
   { name: "withRls Contract", file: "verify-withRls.test.ts" },
   { name: "Policy Check Agent", file: "verify-policy-agent.test.ts" },
+  { name: "Auth (Password Hash)", file: "verify-auth.test.ts" },
 ];
 
 console.log("╔══════════════════════════════════════════╗");

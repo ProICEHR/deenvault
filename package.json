@@ -4,11 +4,19 @@
   "description": "Sovereign AI Governance Infrastructure for African Institutions",
   "private": true,
   "scripts": {
-    "verify": "npx tsx tests/verify-all.ts",
-    "verify:crypto": "npx tsx tests/verify-crypto.test.ts",
-    "verify:replay": "npx tsx tests/verify-replay.test.ts",
-    "verify:session": "npx tsx tests/verify-session.test.ts",
-    "verify:withrls": "npx tsx tests/verify-withRls.test.ts"
+    "dev": "tsx watch server/index.ts",
+    "start": "tsx server/index.ts",
+    "seed": "tsx scripts/seed.ts",
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "verify": "tsx tests/verify-all.ts",
+    "verify:crypto": "tsx tests/verify-crypto.test.ts",
+    "verify:replay": "tsx tests/verify-replay.test.ts",
+    "verify:session": "tsx tests/verify-session.test.ts",
+    "verify:withrls": "tsx tests/verify-withRls.test.ts",
+    "verify:agent": "tsx tests/verify-policy-agent.test.ts",
+    "test:e2e": "bash scripts/test-policy-agent.sh"
   },
   "dependencies": {
     "drizzle-orm": "^0.36.0",
