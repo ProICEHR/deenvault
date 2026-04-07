@@ -122,6 +122,27 @@ app.use(
 // Auth routes — login, logout, session check
 app.use("/api/auth", authRouter);
 
+// Compatibility aliases: some clients/tests use /api/admin/login and /api/admin/me
+// instead of /api/auth/login and /api/auth/session. Forward to the real handlers.
+app.post("/api/admin/login", (req, res, next) => {
+  // Rewrite internally to /api/auth/login
+  req.url = "/login";
+  authRouter(req, res, next);
+});
+app.get("/api/admin/me", (req, res) => {
+  const session = req.session?.governance;
+  if (!session) {
+    res.status(401).json({ authenticated: false });
+    return;
+  }
+  res.json({
+    authenticated: true,
+    userId: session.userId,
+    tenantId: session.tenantId,
+    role: session.role,
+  });
+});
+
 // Governance routes — execute, admin, health
 registerRoutes(app);
 
