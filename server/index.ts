@@ -118,6 +118,19 @@ app.use("/api/auth", authRouter);
 // Governance routes — execute, admin, health
 registerRoutes(app);
 
+// ─── Static Frontend (production) ────────────────────────
+
+if (isProduction) {
+  const path = await import("path");
+  const clientDir = path.resolve(import.meta.dirname || __dirname, "../dist/client");
+  app.use(express.static(clientDir));
+  // SPA fallback — serve index.html for all non-API routes
+  app.get("*", (_req, res, next) => {
+    if (_req.path.startsWith("/api/")) return next();
+    res.sendFile(path.resolve(clientDir, "index.html"));
+  });
+}
+
 // ─── 404 Handler ─────────────────────────────────────────
 
 app.use((_req, res) => {

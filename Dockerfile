@@ -1,15 +1,23 @@
 # DeenVault AI Agents — Production Dockerfile
-# Multi-stage build: install deps, then run with tsx
+# Multi-stage build: install all deps, build frontend, then run with tsx
 
-# ─── Stage 1: Install dependencies ────────────────────────
+# ─── Stage 1: Install ALL dependencies (including dev for build) ─
 FROM node:20-alpine AS deps
 
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev
+RUN npm ci
 
-# ─── Stage 2: Production runtime ─────────────────────────
+# ─── Stage 2: Build frontend ─────────────────────────────
+FROM deps AS builder
+
+WORKDIR /app
+
+COPY . .
+RUN npx vite build --config vite.config.ts
+
+# ─── Stage 3: Production runtime ─────────────────────────
 FROM node:20-alpine AS runtime
 
 WORKDIR /app
@@ -17,16 +25,19 @@ WORKDIR /app
 # Non-root user for security
 RUN addgroup -S deenvault && adduser -S deenvault -G deenvault
 
-# Copy dependencies
-COPY --from=deps /app/node_modules ./node_modules
+# Install production deps only
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev
 
 # Copy application code
-COPY package.json ./
 COPY server ./server
 COPY shared ./shared
 COPY scripts ./scripts
 COPY drizzle ./drizzle
 COPY drizzle.config.ts ./
+
+# Copy built frontend from builder
+COPY --from=builder /app/dist/client ./dist/client
 
 # Switch to non-root user
 USER deenvault

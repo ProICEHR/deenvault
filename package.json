@@ -3,8 +3,12 @@
   "version": "0.1.0",
   "description": "Sovereign AI Governance Infrastructure for African Institutions",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "tsx watch server/index.ts",
+    "dev": "concurrently \"tsx watch server/index.ts\" \"vite --config vite.config.ts\"",
+    "dev:server": "tsx watch server/index.ts",
+    "dev:client": "vite --config vite.config.ts",
+    "build": "vite build --config vite.config.ts",
     "start": "tsx server/index.ts",
     "seed": "tsx scripts/seed.ts",
     "db:push": "drizzle-kit push",
@@ -29,7 +33,11 @@
     "pg": "^8.13.0",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "recharts": "^3.8.1",
     "tsx": "^4.19.0",
+    "wouter": "^3.9.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
@@ -38,7 +46,14 @@
     "@types/express-session": "^1.18.0",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.11.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "autoprefixer": "^10.4.27",
     "drizzle-kit": "^0.28.0",
-    "typescript": "^5.6.0"
+    "postcss": "^8.5.8",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.6.0",
+    "vite": "^8.0.5"
   }
 }
