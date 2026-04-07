@@ -23,10 +23,13 @@ import {
   securityEvents,
   agents,
 } from "../../shared/schema";
+import { adminRateLimiter } from "../middleware/rate-limit";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
-// All admin routes require admin session
+// All admin routes require admin session + rate limiting
+router.use(adminRateLimiter);
 router.use(requireAdminSession);
 
 // ─── Query parameter helpers ─────────────────────────────
@@ -76,7 +79,7 @@ router.get(
 
       res.json({ data: result, from: from.toISOString(), to: to.toISOString() });
     } catch (error) {
-      console.error("[Admin] execution-volume error:", error);
+      logger.error({ err: error }, "Admin execution-volume error");
       res.status(500).json({ error: "Failed to fetch execution volume" });
     }
   }
@@ -115,7 +118,7 @@ router.get(
 
       res.json({ data: result, limit, offset });
     } catch (error) {
-      console.error("[Admin] security-events error:", error);
+      logger.error({ err: error }, "Admin security-events error");
       res.status(500).json({ error: "Failed to fetch security events" });
     }
   }
@@ -156,7 +159,7 @@ router.get(
         to: to.toISOString(),
       });
     } catch (error) {
-      console.error("[Admin] geo-violations error:", error);
+      logger.error({ err: error }, "Admin geo-violations error");
       res.status(500).json({ error: "Failed to fetch geo violations" });
     }
   }
@@ -204,7 +207,7 @@ router.get(
 
       res.json(result);
     } catch (error) {
-      console.error("[Admin] agent-status error:", error);
+      logger.error({ err: error }, "Admin agent-status error");
       res.status(500).json({ error: "Failed to fetch agent status" });
     }
   }
@@ -255,7 +258,7 @@ router.get(
 
       res.json({ data: result, limit, offset });
     } catch (error) {
-      console.error("[Admin] audit-log error:", error);
+      logger.error({ err: error }, "Admin audit-log error");
       res.status(500).json({ error: "Failed to fetch audit log" });
     }
   }
@@ -293,7 +296,7 @@ router.get(
 
       res.json({ data: result });
     } catch (error) {
-      console.error("[Admin] severity-distribution error:", error);
+      logger.error({ err: error }, "Admin severity-distribution error");
       res
         .status(500)
         .json({ error: "Failed to fetch severity distribution" });
@@ -376,7 +379,7 @@ router.get(
         to: to.toISOString(),
       });
     } catch (error) {
-      console.error("[Admin] policy-agent/summary error:", error);
+      logger.error({ err: error }, "Admin policy-agent/summary error");
       res
         .status(500)
         .json({ error: "Failed to fetch policy agent summary" });

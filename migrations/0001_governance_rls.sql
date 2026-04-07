@@ -24,7 +24,11 @@ BEGIN
 END
 $$;
 
-GRANT CONNECT ON DATABASE deenvault TO deenvault_app;
+-- Dynamic grant — works regardless of database name (Railway uses 'railway')
+DO $$
+BEGIN
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO deenvault_app', current_database());
+END $$;
 GRANT USAGE ON SCHEMA public TO deenvault_app;
 
 -- Grant table-level permissions (SELECT, INSERT, UPDATE — no DELETE, no TRUNCATE)

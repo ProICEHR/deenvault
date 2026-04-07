@@ -16,12 +16,17 @@ import { eq, and } from "drizzle-orm";
 import { withRls, withSystemContext } from "../db";
 import { users, tenants } from "../../shared/schema";
 import { verifyPassword } from "../auth";
+import { loginRateLimiter } from "../middleware/rate-limit";
+import { logger } from "../lib/logger";
+
+// System user UUID for auth bootstrap (before real user is known)
+const SYSTEM_AUTH_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 const router = Router();
 
 // ─── POST /api/auth/login ────────────────────────────────
 
-router.post("/login", async (req: Request, res: Response): Promise<void> => {
+router.post("/login", loginRateLimiter, async (req: Request, res: Response): Promise<void> => {
   const { email, password, tenantId } = req.body;
 
   if (!email || !password || !tenantId) {
@@ -36,7 +41,7 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
     // Validate tenant exists and is active.
     // We need to look up the user within their tenant context
     // to satisfy RLS policies.
-    const result = await withRls(tenantId, "system-auth", async (tx) => {
+    const result = await withRls(tenantId, SYSTEM_AUTH_USER_ID, async (tx) => {
       // Check tenant is active
       const [tenant] = await tx
         .select({
@@ -118,7 +123,7 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
 
     req.session.regenerate((err) => {
       if (err) {
-        console.error("[Auth] Session regeneration failed:", err);
+        logger.error({ err }, "Session regeneration failed");
         res.status(500).json({ error: "Session creation failed" });
         return;
       }
@@ -132,7 +137,7 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
 
       req.session.save((saveErr) => {
         if (saveErr) {
-          console.error("[Auth] Session save failed:", saveErr);
+          logger.error({ err: saveErr }, "Session save failed");
           res.status(500).json({ error: "Session creation failed" });
           return;
         }
@@ -152,7 +157,7 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
       });
     });
   } catch (error) {
-    console.error("[Auth] Login error:", error);
+    logger.error({ err: error }, "Login error");
     res.status(500).json({ error: "Authentication failed" });
   }
 });
@@ -164,7 +169,7 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     req.session.destroy((err) => {
       if (err) {
-        console.error("[Auth] Logout error:", err);
+        logger.error({ err }, "Logout error");
         res.status(500).json({ error: "Logout failed" });
         return;
       }

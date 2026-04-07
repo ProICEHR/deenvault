@@ -16,6 +16,7 @@
 import { Request, Response, NextFunction } from "express";
 import { eq } from "drizzle-orm";
 import { db, withRls } from "../db";
+import { logger } from "../lib/logger";
 import { tenants, securityEvents } from "../../shared/schema";
 import { getSession } from "./session";
 
@@ -171,7 +172,7 @@ export function regionGate(config: RegionConfig) {
 
       next();
     } catch (error) {
-      console.error("[RegionGate] Error:", error);
+      logger.error({ err: error }, "Region gate error");
       res.status(500).json({
         error: "Region verification failed",
         code: "REGION_GATE_ERROR",

@@ -14,6 +14,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { sql } from "drizzle-orm";
 import * as schema from "../shared/schema";
+import { logger } from "./lib/logger";
 
 // ─── Connection Pool ─────────────────────────────────────
 // Must connect as deenvault_app role, NOT superuser.
@@ -26,7 +27,7 @@ const pool = new Pool({
 });
 
 pool.on("error", (err) => {
-  console.error("[DB] Unexpected pool error:", err.message);
+  logger.error({ err }, "Unexpected pool error");
 });
 
 export const db = drizzle(pool, { schema });

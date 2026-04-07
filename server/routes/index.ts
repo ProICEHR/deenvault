@@ -8,6 +8,7 @@
 import { Express } from "express";
 import executeRouter from "./execute";
 import adminRouter from "./admin";
+import { logger } from "../lib/logger";
 
 export function registerRoutes(app: Express): void {
   // Execution gateway — the core
@@ -18,13 +19,24 @@ export function registerRoutes(app: Express): void {
 
   // Health check — no auth required
   app.get("/api/health", async (_req, res) => {
-    const { checkDatabaseHealth } = await import("../db");
-    const dbHealthy = await checkDatabaseHealth();
+    try {
+      const { checkDatabaseHealth } = await import("../db");
+      const dbHealthy = await checkDatabaseHealth();
 
-    res.status(dbHealthy ? 200 : 503).json({
-      status: dbHealthy ? "healthy" : "degraded",
-      region: process.env.REGION_ID || "unknown",
-      timestamp: new Date().toISOString(),
-    });
+      res.status(dbHealthy ? 200 : 503).json({
+        ok: dbHealthy,
+        service: "deenvault-ai-agent-academy",
+        region: process.env.REGION_ANCHOR ?? "unknown",
+        regionId: process.env.REGION_ID ?? "unknown",
+        policyVersion: process.env.POLICY_VERSION ?? "unknown",
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      logger.error({ err: error }, "Health check failed");
+      res.status(503).json({
+        ok: false,
+        error: "Health check failed",
+      });
+    }
   });
 }

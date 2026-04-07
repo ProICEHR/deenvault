@@ -34,6 +34,8 @@ import {
   getRegionConfig,
   loadRegionConfig,
 } from "../middleware";
+import { executeRateLimiter } from "../middleware/rate-limit";
+import { logger } from "../lib/logger";
 import { withRls } from "../db";
 import {
   agents,
@@ -53,6 +55,7 @@ const regionConfig = loadRegionConfig();
 
 // ─── Middleware Stack (order matters) ────────────────────
 
+router.use(executeRateLimiter);
 router.use(requireUserSession);
 router.use(requireReplayHeaders);
 router.use(regionGate(regionConfig));
@@ -354,7 +357,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    console.error("[Execute] Unhandled error:", error);
+    logger.error({ err: error }, "Execution gateway error");
     res.status(500).json({
       error: "Execution failed",
       code: "EXECUTION_ERROR",
@@ -392,7 +395,7 @@ async function logSecurityEvent(
       });
     });
   } catch (err) {
-    console.error("[Execute] Failed to log security event:", err);
+    logger.error({ err }, "Failed to log security event");
   }
 }
 

@@ -19,3 +19,5 @@ export {
   getRegionConfig,
   type RegionConfig,
 } from "./region-gate";
+export { enforceSessionVersion } from "./session-version";
+export { loginRateLimiter, executeRateLimiter, adminRateLimiter } from "./rate-limit";
