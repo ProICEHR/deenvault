@@ -130,10 +130,11 @@ registerRoutes(app);
 if (isProduction) {
   const path = await import("path");
   const clientDir = path.resolve(import.meta.dirname || __dirname, "../dist/client");
-  app.use(express.static(clientDir));
-  // SPA fallback — serve index.html for all non-API routes
-  app.get("*", (_req, res, next) => {
-    if (_req.path.startsWith("/api/")) return next();
+  app.use(express.static(clientDir, { index: false }));
+  // SPA fallback — serve index.html for all non-API routes.
+  // MUST come after ALL API route registrations.
+  // The regex excludes /api/* so unmatched API routes fall through to 404.
+  app.get(/^\/(?!api\/).*/, (_req, res) => {
     res.sendFile(path.resolve(clientDir, "index.html"));
   });
 }
