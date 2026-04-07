@@ -14,6 +14,14 @@ import adminAgentsRouter from "./admin-agents";
 import { logger } from "../lib/logger";
 
 export function registerRoutes(app: Express): void {
+  // Prevent Railway CDN from caching session-dependent API responses.
+  // CDN caching strips Set-Cookie headers, breaking authentication.
+  app.use("/api", (_req, res, next) => {
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    res.set("Pragma", "no-cache");
+    next();
+  });
+
   // Execution gateway — the core
   app.use("/api/execute", executeRouter);
 

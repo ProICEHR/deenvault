@@ -24,6 +24,15 @@ const SYSTEM_AUTH_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 const router = Router();
 
+// ─── Prevent CDN/proxy caching on ALL auth responses ─────
+// Railway CDN can cache responses and strip Set-Cookie headers.
+// This middleware ensures auth endpoints are never cached.
+router.use((_req, res, next) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  res.set("Pragma", "no-cache");
+  next();
+});
+
 // ─── POST /api/auth/login ────────────────────────────────
 
 router.post("/login", loginRateLimiter, async (req: Request, res: Response): Promise<void> => {
