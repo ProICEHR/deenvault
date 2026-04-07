@@ -40,7 +40,11 @@ export const tenantStatusEnum = pgEnum("tenant_status", [
   "pending",
 ]);
 
+// Phase 2: Added super_admin (platform owner) and tenant_admin (tenant operator).
+// "admin" kept for backward compatibility — treated as tenant_admin in middleware.
 export const userRoleEnum = pgEnum("user_role", [
+  "super_admin",
+  "tenant_admin",
   "admin",
   "instructor",
   "student",
@@ -52,10 +56,12 @@ export const userStatusEnum = pgEnum("user_status", [
   "pending",
 ]);
 
+// Phase 2: Added "under_review" for agent governance workflow.
 export const agentStatusEnum = pgEnum("agent_status", [
   "active",
   "suspended",
   "draft",
+  "under_review",
 ]);
 
 export const agentTypeEnum = pgEnum("agent_type", [
@@ -63,13 +69,16 @@ export const agentTypeEnum = pgEnum("agent_type", [
   "general",
 ]);
 
+// Phase 2: Added "INFO" for admin action audit events.
 export const securitySeverityEnum = pgEnum("security_severity", [
   "CRITICAL",
   "HIGH",
   "MEDIUM",
   "LOW",
+  "INFO",
 ]);
 
+// Phase 2: Added "ADMIN_ACTION" for control plane audit trail.
 export const securityEventTypeEnum = pgEnum("security_event_type", [
   "GEO_VIOLATION",
   "AGENT_NOT_APPROVED",
@@ -79,6 +88,7 @@ export const securityEventTypeEnum = pgEnum("security_event_type", [
   "RLS_CONTEXT_MISSING",
   "UNAUTHORIZED_ACCESS",
   "REGION_MISMATCH",
+  "ADMIN_ACTION",
 ]);
 
 // ─── Tenants ─────────────────────────────────────────────
@@ -89,6 +99,7 @@ export const tenants = pgTable("tenants", {
   primaryRegion: regionEnum("primary_region").notNull(),
   regionLocked: boolean("region_locked").notNull().default(true),
   status: tenantStatusEnum("status").notNull().default("active"),
+  suspendedAt: timestamp("suspended_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -107,10 +118,13 @@ export const users = pgTable(
       .notNull()
       .references(() => tenants.id, { onDelete: "restrict" }),
     email: text("email").notNull(),
+    name: text("name"),
     passwordHash: text("password_hash").notNull(),
     role: userRoleEnum("role").notNull().default("student"),
     status: userStatusEnum("status").notNull().default("active"),
+    mustChangePassword: boolean("must_change_password").notNull().default(false),
     sessionVersion: integer("session_version").notNull().default(1),
+    deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -140,7 +154,10 @@ export const agents = pgTable(
     approved: boolean("approved").notNull().default(false),
     approvedBy: uuid("approved_by").references(() => users.id),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdBy: uuid("created_by").references(() => users.id),
     status: agentStatusEnum("status").notNull().default("draft"),
+    suspendedAt: timestamp("suspended_at", { withTimezone: true }),
+    reviewNotes: text("review_notes"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -270,6 +287,10 @@ export const agentsRelations = relations(agents, ({ one, many }) => ({
     fields: [agents.approvedBy],
     references: [users.id],
   }),
+  creator: one(users, {
+    fields: [agents.createdBy],
+    references: [users.id],
+  }),
   logs: many(agentLogs),
 }));
 
@@ -340,6 +361,23 @@ export type NewSecurityEvent = typeof securityEvents.$inferInsert;
 export type HmacKey = typeof hmacKeys.$inferSelect;
 export type NewHmacKey = typeof hmacKeys.$inferInsert;
 
+// ─── Role Helpers ────────────────────────────────────────
+
+export type UserRole = "super_admin" | "tenant_admin" | "admin" | "instructor" | "student";
+
+/** Roles that can access admin control plane */
+export const ADMIN_ROLES: UserRole[] = ["super_admin", "tenant_admin", "admin"];
+
+/** Check if a role has admin privileges (tenant_admin or above) */
+export function isAdminRole(role: string): boolean {
+  return ADMIN_ROLES.includes(role as UserRole);
+}
+
+/** Check if role is platform-level (super_admin) */
+export function isSuperAdmin(role: string): boolean {
+  return role === "super_admin";
+}
+
 // ─── Execution Request Schema ────────────────────────────
 
 export const executeRequestSchema = z.object({
@@ -355,6 +393,6 @@ export type ExecuteRequest = z.infer<typeof executeRequestSchema>;
 export interface GovernanceSession {
   userId: string;
   tenantId: string;
-  role: "admin" | "instructor" | "student";
+  role: UserRole;
   sessionVersion: number;
 }

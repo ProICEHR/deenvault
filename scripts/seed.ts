@@ -29,6 +29,8 @@ const TENANT_NAME = process.env.SEED_TENANT_NAME || "DeenVault Academy";
 const TENANT_REGION = (process.env.SEED_TENANT_REGION || "NG") as "NG" | "EG";
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || "admin@deenvault.ng";
 const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || "change-me-immediately";
+// SEED_ADMIN_ROLE: "super_admin" for platform bootstrap, "tenant_admin" for tenant-only
+const ADMIN_ROLE = (process.env.SEED_ADMIN_ROLE || "super_admin") as "super_admin" | "tenant_admin" | "admin";
 const AGENT_NAME = "PolicyCheckAgent";
 const AGENT_POLICY_VERSION = "v1.2";
 
@@ -80,15 +82,17 @@ async function seed(): Promise<void> {
       .values({
         tenantId: tenant.id,
         email: ADMIN_EMAIL,
+        name: "Platform Admin",
         passwordHash,
-        role: "admin",
+        role: ADMIN_ROLE,
         status: "active",
+        mustChangePassword: true,
       })
-      .returning({ id: users.id, email: users.email });
+      .returning({ id: users.id, email: users.email, role: users.role });
 
     console.log(`   Email:  ${admin.email}`);
     console.log(`   ID:     ${admin.id}`);
-    console.log(`   Role:   admin`);
+    console.log(`   Role:   ${admin.role}`);
 
     // ─── 3. Create Policy Agent ───────────────────────────
 
@@ -127,6 +131,7 @@ async function seed(): Promise<void> {
         approved: true,
         approvedBy: admin.id,
         approvedAt: new Date(),
+        createdBy: admin.id,
         status: "active",
       })
       .returning({ id: agents.id, name: agents.name });

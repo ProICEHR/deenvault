@@ -21,3 +21,4 @@ export {
 } from "./region-gate";
 export { enforceSessionVersion } from "./session-version";
 export { loginRateLimiter, executeRateLimiter, adminRateLimiter } from "./rate-limit";
+export { requireRole } from "./require-role";

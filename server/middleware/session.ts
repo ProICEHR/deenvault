@@ -7,12 +7,13 @@
  * Session contains:
  *   userId       — authenticated user
  *   tenantId     — derived from user record at login
- *   role         — admin | instructor | student
+ *   role         — super_admin | tenant_admin | admin | instructor | student
  *   sessionVersion — invalidation counter
  */
 
 import { Request, Response, NextFunction } from "express";
 import type { GovernanceSession } from "../../shared/schema";
+import { isAdminRole } from "../../shared/schema";
 
 // Extend Express session
 declare module "express-session" {
@@ -65,7 +66,7 @@ export function requireAdminSession(
     return;
   }
 
-  if (session.role !== "admin") {
+  if (!isAdminRole(session.role)) {
     res.status(403).json({
       error: "Admin access required",
       code: "INSUFFICIENT_ROLE",

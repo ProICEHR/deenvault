@@ -96,6 +96,39 @@ export async function withSystemContext<T>(
   });
 }
 
+// ─── withSuperAdmin() — Platform-Level Cross-Tenant Access ─
+// Sets app.is_super_admin = 'true' to bypass tenant isolation
+// policies. Only for super_admin operations (tenant listing,
+// cross-tenant user management, etc.).
+//
+// IMPORTANT: The calling code MUST verify the user is super_admin
+// before calling this. This function trusts its caller.
+//
+// Usage:
+//   const tenants = await withSuperAdmin(userId, async (tx) => {
+//     return tx.select().from(tenants);  // sees ALL tenants
+//   });
+
+export async function withSuperAdmin<T>(
+  userId: string,
+  callback: (tx: typeof db) => Promise<T>
+): Promise<T> {
+  if (!userId) {
+    throw new Error("[withSuperAdmin] userId is required.");
+  }
+
+  return await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT set_config('app.is_super_admin', 'true', true)`
+    );
+    await tx.execute(
+      sql`SELECT set_config('app.current_user', ${userId}, true)`
+    );
+
+    return await callback(tx as unknown as typeof db);
+  });
+}
+
 // ─── Health Check ────────────────────────────────────────
 
 export async function checkDatabaseHealth(): Promise<boolean> {

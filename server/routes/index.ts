@@ -8,6 +8,9 @@
 import { Express } from "express";
 import executeRouter from "./execute";
 import adminRouter from "./admin";
+import adminUsersRouter from "./admin-users";
+import adminTenantsRouter from "./admin-tenants";
+import adminAgentsRouter from "./admin-agents";
 import { logger } from "../lib/logger";
 
 export function registerRoutes(app: Express): void {
@@ -16,6 +19,11 @@ export function registerRoutes(app: Express): void {
 
   // Admin observability — dashboard data
   app.use("/api/admin", adminRouter);
+
+  // Control plane — user, tenant, agent management
+  app.use("/api/admin/users", adminUsersRouter);
+  app.use("/api/admin/tenants", adminTenantsRouter);
+  app.use("/api/admin/agents", adminAgentsRouter);
 
   // Health check — no auth required
   app.get("/api/health", async (_req, res) => {
