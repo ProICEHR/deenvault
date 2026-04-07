@@ -89,18 +89,25 @@ const sessionPool = new Pool({
 
 const PgStore = connectPgSimple(session);
 
+const pgStore = new PgStore({
+  pool: sessionPool,
+  tableName: "user_sessions",
+  createTableIfMissing: true,
+});
+
+pgStore.on("error", (error: Error) => {
+  logger.error({ err: error }, "Session store error");
+});
+
 app.use(
   session({
-    store: new PgStore({
-      pool: sessionPool,
-      tableName: "user_sessions",
-      createTableIfMissing: true,
-    }),
+    store: pgStore,
     secret: sessionSecret,
     name: "deenvault.sid",
     resave: false,
     saveUninitialized: false,
     rolling: true,
+    proxy: isProduction, // Trust X-Forwarded-Proto from Railway proxy
     cookie: {
       httpOnly: true,
       secure: isProduction,

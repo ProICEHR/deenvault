@@ -120,13 +120,15 @@ router.post("/login", loginRateLimiter, async (req: Request, res: Response): Pro
 
     // ─── Create governance session ────────────────────────
     // Regenerate session ID to prevent session fixation.
+    // Wrap in promise for cleaner error handling.
 
-    req.session.regenerate((err) => {
-      if (err) {
-        logger.error({ err }, "Session regeneration failed");
-        res.status(500).json({ error: "Session creation failed" });
-        return;
-      }
+    try {
+      await new Promise<void>((resolve, reject) => {
+        req.session.regenerate((err) => {
+          if (err) return reject(err);
+          resolve();
+        });
+      });
 
       req.session.governance = {
         userId: result.user.id,
@@ -135,27 +137,34 @@ router.post("/login", loginRateLimiter, async (req: Request, res: Response): Pro
         sessionVersion: result.user.sessionVersion,
       };
 
-      req.session.save((saveErr) => {
-        if (saveErr) {
-          logger.error({ err: saveErr }, "Session save failed");
-          res.status(500).json({ error: "Session creation failed" });
-          return;
-        }
-
-        res.json({
-          success: true,
-          user: {
-            id: result.user.id,
-            email: result.user.email,
-            role: result.user.role,
-          },
-          tenant: {
-            id: result.tenant.id,
-            region: result.tenant.primaryRegion,
-          },
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) return reject(err);
+          resolve();
         });
       });
-    });
+
+      logger.info(
+        { userId: result.user.id, sessionId: req.sessionID },
+        "Login successful, session saved"
+      );
+
+      res.json({
+        success: true,
+        user: {
+          id: result.user.id,
+          email: result.user.email,
+          role: result.user.role,
+        },
+        tenant: {
+          id: result.tenant.id,
+          region: result.tenant.primaryRegion,
+        },
+      });
+    } catch (sessionErr) {
+      logger.error({ err: sessionErr }, "Session creation failed");
+      res.status(500).json({ error: "Session creation failed" });
+    }
   } catch (error) {
     logger.error({ err: error }, "Login error");
     res.status(500).json({ error: "Authentication failed" });
@@ -189,6 +198,15 @@ router.get(
     const session = req.session?.governance;
 
     if (!session) {
+      logger.warn(
+        {
+          sessionID: req.sessionID,
+          hasSession: !!req.session,
+          hasCookie: !!req.headers.cookie,
+          cookieHeader: req.headers.cookie ? "[present]" : "[absent]",
+        },
+        "Session check: not authenticated"
+      );
       res.status(401).json({
         authenticated: false,
       });
@@ -200,6 +218,29 @@ router.get(
       userId: session.userId,
       tenantId: session.tenantId,
       role: session.role,
+    });
+  }
+);
+
+// ─── GET /api/auth/debug-session ────────────────────────
+// Temporary diagnostic endpoint — helps troubleshoot session issues.
+// Returns session metadata without sensitive data.
+
+router.get(
+  "/debug-session",
+  async (req: Request, res: Response): Promise<void> => {
+    res.json({
+      hasSessionObj: !!req.session,
+      sessionID: req.sessionID ? `${req.sessionID.substring(0, 8)}...` : null,
+      hasGovernance: !!req.session?.governance,
+      hasCookieHeader: !!req.headers.cookie,
+      cookieNames: req.headers.cookie
+        ? req.headers.cookie.split(";").map((c) => c.trim().split("=")[0])
+        : [],
+      protocol: req.protocol,
+      xForwardedProto: req.headers["x-forwarded-proto"],
+      secure: req.secure,
+      trustProxy: req.app.get("trust proxy"),
     });
   }
 );
