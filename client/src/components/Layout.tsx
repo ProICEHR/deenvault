@@ -3,6 +3,8 @@ import { useAuth } from "../lib/auth";
 
 const NAV_ITEMS = [
   { path: "/admin/dashboard", label: "Dashboard", roles: ["super_admin", "tenant_admin", "admin"] },
+  { path: "/admin/applications", label: "Applications", roles: ["super_admin", "tenant_admin", "admin"] },
+  { path: "/admin/sponsors", label: "Sponsors", roles: ["super_admin", "tenant_admin", "admin"] },
   { path: "/admin/tenants", label: "Tenants", roles: ["super_admin"] },
   { path: "/admin/users", label: "Users", roles: ["super_admin", "tenant_admin", "admin"] },
   { path: "/admin/agents", label: "Agents", roles: ["super_admin", "tenant_admin", "admin"] },

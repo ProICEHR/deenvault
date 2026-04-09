@@ -6,6 +6,8 @@ import { DashboardPage } from "./pages/Dashboard";
 import { TenantsPage } from "./pages/Tenants";
 import { UsersPage } from "./pages/Users";
 import { AgentsPage } from "./pages/Agents";
+import { ApplicationsPage } from "./pages/Applications";
+import { SponsorsPage } from "./pages/Sponsors";
 
 export function App() {
   const { loading, authenticated, isAdmin } = useAuth();
@@ -34,6 +36,8 @@ export function App() {
         <Route path="/admin/tenants" component={TenantsPage} />
         <Route path="/admin/users" component={UsersPage} />
         <Route path="/admin/agents" component={AgentsPage} />
+        <Route path="/admin/applications" component={ApplicationsPage} />
+        <Route path="/admin/sponsors" component={SponsorsPage} />
         <Route path="/admin/login"><Redirect to="/admin/dashboard" /></Route>
         <Route><Redirect to="/admin/dashboard" /></Route>
       </Switch>

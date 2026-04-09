@@ -64,6 +64,30 @@ export const admin = {
   suspendAgent: (id: string, reason?: string) =>
     request<{ ok: boolean; agent: any }>(`/api/admin/agents/${id}/suspend`, { method: "POST", body: JSON.stringify({ reason }) }),
 
+  // Applications
+  applicationStats: () =>
+    request<any>("/api/admin/applications/stats"),
+  listApplications: (status?: string) =>
+    request<{ data: any[]; total: number }>(`/api/admin/applications${status ? `?status=${status}` : ""}`),
+  createApplication: (body: any) =>
+    request<{ ok: boolean; application: any }>("/api/admin/applications", { method: "POST", body: JSON.stringify(body) }),
+  reviewApplication: (id: string, reviewNotes?: string) =>
+    request<{ ok: boolean; application: any }>(`/api/admin/applications/${id}/review`, { method: "POST", body: JSON.stringify({ reviewNotes }) }),
+  acceptApplication: (id: string, body?: any) =>
+    request<{ ok: boolean; application: any }>(`/api/admin/applications/${id}/accept`, { method: "POST", body: JSON.stringify(body || {}) }),
+  rejectApplication: (id: string, reviewNotes?: string) =>
+    request<{ ok: boolean; application: any }>(`/api/admin/applications/${id}/reject`, { method: "POST", body: JSON.stringify({ reviewNotes }) }),
+  onboardApplication: (id: string) =>
+    request<{ ok: boolean; application: any }>(`/api/admin/applications/${id}/onboard`, { method: "POST" }),
+
+  // Sponsors
+  listSponsors: () =>
+    request<{ data: any[]; total: number }>("/api/admin/sponsors"),
+  createSponsor: (body: any) =>
+    request<{ ok: boolean; sponsor: any }>("/api/admin/sponsors", { method: "POST", body: JSON.stringify(body) }),
+  updateSponsor: (id: string, body: any) =>
+    request<{ ok: boolean; sponsor: any }>(`/api/admin/sponsors/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+
   // Observability
   severityDistribution: () =>
     request<{ data: any[] }>("/api/admin/severity-distribution"),

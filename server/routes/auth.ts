@@ -207,15 +207,6 @@ router.get(
     const session = req.session?.governance;
 
     if (!session) {
-      logger.warn(
-        {
-          sessionID: req.sessionID,
-          hasSession: !!req.session,
-          hasCookie: !!req.headers.cookie,
-          cookieHeader: req.headers.cookie ? "[present]" : "[absent]",
-        },
-        "Session check: not authenticated"
-      );
       res.status(401).json({
         authenticated: false,
       });
@@ -227,29 +218,6 @@ router.get(
       userId: session.userId,
       tenantId: session.tenantId,
       role: session.role,
-    });
-  }
-);
-
-// ─── GET /api/auth/debug-session ────────────────────────
-// Temporary diagnostic endpoint — helps troubleshoot session issues.
-// Returns session metadata without sensitive data.
-
-router.get(
-  "/debug-session",
-  async (req: Request, res: Response): Promise<void> => {
-    res.json({
-      hasSessionObj: !!req.session,
-      sessionID: req.sessionID ? `${req.sessionID.substring(0, 8)}...` : null,
-      hasGovernance: !!req.session?.governance,
-      hasCookieHeader: !!req.headers.cookie,
-      cookieNames: req.headers.cookie
-        ? req.headers.cookie.split(";").map((c) => c.trim().split("=")[0])
-        : [],
-      protocol: req.protocol,
-      xForwardedProto: req.headers["x-forwarded-proto"],
-      secure: req.secure,
-      trustProxy: req.app.get("trust proxy"),
     });
   }
 );

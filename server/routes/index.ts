@@ -11,6 +11,8 @@ import adminRouter from "./admin";
 import adminUsersRouter from "./admin-users";
 import adminTenantsRouter from "./admin-tenants";
 import adminAgentsRouter from "./admin-agents";
+import adminApplicationsRouter from "./admin-applications";
+import adminSponsorsRouter from "./admin-sponsors";
 import { logger } from "../lib/logger";
 
 export function registerRoutes(app: Express): void {
@@ -32,6 +34,10 @@ export function registerRoutes(app: Express): void {
   app.use("/api/admin/users", adminUsersRouter);
   app.use("/api/admin/tenants", adminTenantsRouter);
   app.use("/api/admin/agents", adminAgentsRouter);
+
+  // Academy — applications and sponsors
+  app.use("/api/admin/applications", adminApplicationsRouter);
+  app.use("/api/admin/sponsors", adminSponsorsRouter);
 
   // Health check — no auth required
   app.get("/api/health", async (_req, res) => {

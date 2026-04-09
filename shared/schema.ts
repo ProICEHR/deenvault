@@ -69,6 +69,22 @@ export const agentTypeEnum = pgEnum("agent_type", [
   "general",
 ]);
 
+// ─── Academy Enums ──────────────────────────────────────
+
+export const applicationStatusEnum = pgEnum("application_status", [
+  "applied",
+  "reviewed",
+  "accepted",
+  "rejected",
+  "onboarded",
+]);
+
+export const sponsorStatusEnum = pgEnum("sponsor_status", [
+  "active",
+  "inactive",
+  "completed",
+]);
+
 // Phase 2: Added "INFO" for admin action audit events.
 export const securitySeverityEnum = pgEnum("security_severity", [
   "CRITICAL",
@@ -261,6 +277,67 @@ export const hmacKeys = pgTable(
   ]
 );
 
+// ─── Sponsors ───────────────────────────────────────────
+// Institutional or individual sponsors funding academy operations.
+
+export const sponsors = pgTable(
+  "sponsors",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    contactEmail: text("contact_email"),
+    status: sponsorStatusEnum("status").notNull().default("active"),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("sponsors_tenant_idx").on(table.tenantId),
+  ]
+);
+
+// ─── Applications ───────────────────────────────────────
+// Academy applications — the core pipeline.
+// Status flow: applied → reviewed → accepted → onboarded
+//                                  → rejected
+
+export const applications = pgTable(
+  "applications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    applicantName: text("applicant_name").notNull(),
+    applicantEmail: text("applicant_email").notNull(),
+    programName: text("program_name"),
+    status: applicationStatusEnum("status").notNull().default("applied"),
+    reviewedBy: uuid("reviewed_by").references(() => users.id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewNotes: text("review_notes"),
+    sponsorId: uuid("sponsor_id").references(() => sponsors.id),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("applications_tenant_idx").on(table.tenantId),
+    index("applications_status_idx").on(table.tenantId, table.status),
+  ]
+);
+
 // ─── Relations ───────────────────────────────────────────
 
 export const tenantsRelations = relations(tenants, ({ many }) => ({
@@ -320,6 +397,29 @@ export const securityEventsRelations = relations(securityEvents, ({ one }) => ({
   }),
 }));
 
+export const sponsorsRelations = relations(sponsors, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [sponsors.tenantId],
+    references: [tenants.id],
+  }),
+  applications: many(applications),
+}));
+
+export const applicationsRelations = relations(applications, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [applications.tenantId],
+    references: [tenants.id],
+  }),
+  reviewer: one(users, {
+    fields: [applications.reviewedBy],
+    references: [users.id],
+  }),
+  sponsor: one(sponsors, {
+    fields: [applications.sponsorId],
+    references: [sponsors.id],
+  }),
+}));
+
 // ─── Zod Schemas (Validation) ────────────────────────────
 
 export const insertTenantSchema = createInsertSchema(tenants);
@@ -341,6 +441,12 @@ export const selectAgentLogSchema = createSelectSchema(agentLogs);
 export const insertSecurityEventSchema = createInsertSchema(securityEvents);
 export const selectSecurityEventSchema = createSelectSchema(securityEvents);
 
+export const insertSponsorSchema = createInsertSchema(sponsors);
+export const selectSponsorSchema = createSelectSchema(sponsors);
+
+export const insertApplicationSchema = createInsertSchema(applications);
+export const selectApplicationSchema = createSelectSchema(applications);
+
 // ─── TypeScript Types ────────────────────────────────────
 
 export type Tenant = typeof tenants.$inferSelect;
@@ -360,6 +466,14 @@ export type NewSecurityEvent = typeof securityEvents.$inferInsert;
 
 export type HmacKey = typeof hmacKeys.$inferSelect;
 export type NewHmacKey = typeof hmacKeys.$inferInsert;
+
+export type Sponsor = typeof sponsors.$inferSelect;
+export type NewSponsor = typeof sponsors.$inferInsert;
+
+export type Application = typeof applications.$inferSelect;
+export type NewApplication = typeof applications.$inferInsert;
+
+export type ApplicationStatus = "applied" | "reviewed" | "accepted" | "rejected" | "onboarded";
 
 // ─── Role Helpers ────────────────────────────────────────
 
