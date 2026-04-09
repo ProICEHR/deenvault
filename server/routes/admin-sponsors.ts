@@ -87,7 +87,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 
 router.patch("/:id", async (req: Request, res: Response): Promise<void> => {
   const session = getSession(req);
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { name, description, contactEmail, status } = req.body;
 
   try {
