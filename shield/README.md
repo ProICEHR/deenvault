@@ -35,6 +35,18 @@ shield/
     └── app.js        # navigation, dashboard, persistence, wiring
 ```
 
+## Testing
+
+The analysis logic (password strength + URL inspection) has dependency-free unit
+tests that run on stock Node:
+
+```
+node --test "shield/tests/*.test.js"
+```
+
+These run automatically in CI (`.github/workflows/ci.yml`) on every push and
+pull request, alongside a `node --check` syntax pass over all scripts.
+
 ## Privacy
 
 Everything runs in your browser. The only network request the app can make is
