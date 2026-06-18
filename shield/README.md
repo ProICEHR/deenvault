@@ -46,3 +46,12 @@ else. The checklist state lives only in your browser's `localStorage`.
 The phishing inspector is an educational aid based on lexical heuristics — a
 "likely safe" verdict is not a guarantee. When in doubt, type a site's address
 yourself rather than clicking a link.
+
+The password strength estimate is a guide, not a cracking simulator: it combines
+a character-pool entropy estimate with penalties for predictable structure
+(common words, years, sequences, repeats). It is intentionally dependency-free
+and not a substitute for a tool like zxcvbn.
+
+The breach check uses the Web Crypto API, which browsers only expose in a
+**secure context**. Serve the app over HTTPS (or `localhost`) for it to work;
+over plain `http://` the app will say so instead of failing silently.

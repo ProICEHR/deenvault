@@ -5,6 +5,16 @@
 
 const STORAGE_KEY = "socialshield.checklist.v1";
 
+/** Escape text before interpolating it into innerHTML. */
+function esc(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 /* ---------- checklist persistence ---------- */
 
 function loadState() {
@@ -93,10 +103,10 @@ function renderDashboard() {
     card.className = "platform-card";
     card.onclick = () => { showView("checklist"); setTimeout(() => focusPlatform(p.id), 50); };
     card.innerHTML = `
-      <span class="platform-badge" style="background:${p.color}">${p.initial}</span>
+      <span class="platform-badge" style="background:${esc(p.color)}">${esc(p.initial)}</span>
       <span class="platform-meta">
-        <span class="platform-name">${p.name}</span>
-        <span class="platform-bar"><span style="width:${pct}%;background:${p.color}"></span></span>
+        <span class="platform-name">${esc(p.name)}</span>
+        <span class="platform-bar"><span style="width:${pct}%;background:${esc(p.color)}"></span></span>
       </span>
       <span class="platform-count">${done}/${total}</span>
     `;
@@ -117,35 +127,44 @@ function renderChecklist() {
 
     const tasksHtml = p.tasks.map((t) => `
       <label class="task ${isDone(t.id) ? "done" : ""}">
-        <input type="checkbox" data-task="${t.id}" ${isDone(t.id) ? "checked" : ""}>
+        <input type="checkbox" data-task="${esc(t.id)}" ${isDone(t.id) ? "checked" : ""}>
         <span class="checkmark"></span>
-        <span class="task-text">${t.text}</span>
+        <span class="task-text">${esc(t.text)}</span>
       </label>
     `).join("");
 
     section.innerHTML = `
       <header class="checklist-head">
-        <span class="platform-badge" style="background:${p.color}">${p.initial}</span>
+        <span class="platform-badge" style="background:${esc(p.color)}">${esc(p.initial)}</span>
         <div class="checklist-head-text">
-          <h3>${p.name}</h3>
+          <h3>${esc(p.name)}</h3>
           <span class="muted">${done}/${total} complete</span>
         </div>
-        <a class="settings-link" href="${p.settingsUrl}" target="_blank" rel="noopener noreferrer">
+        <a class="settings-link" href="${esc(p.settingsUrl)}" target="_blank" rel="noopener noreferrer">
           Open security settings ↗
         </a>
       </header>
-      <div class="platform-bar wide"><span style="width:${pct}%;background:${p.color}"></span></div>
+      <div class="platform-bar wide"><span style="width:${pct}%;background:${esc(p.color)}"></span></div>
       <div class="tasks">${tasksHtml}</div>
     `;
+
+    section.querySelectorAll('input[type="checkbox"]').forEach((box) => {
+      box.addEventListener("change", (e) => {
+        toggleTask(e.target.dataset.task, e.target.checked);
+        e.target.closest(".task").classList.toggle("done", e.target.checked);
+        updateSectionProgress(p, section);
+      });
+    });
+
     container.appendChild(section);
   });
+}
 
-  container.querySelectorAll('input[type="checkbox"]').forEach((box) => {
-    box.addEventListener("change", (e) => {
-      toggleTask(e.target.dataset.task, e.target.checked);
-      renderChecklist();
-    });
-  });
+/** Update one platform section's count/bar in place without a full re-render. */
+function updateSectionProgress(p, section) {
+  const { done, total, pct } = platformProgress(p);
+  section.querySelector(".checklist-head .muted").textContent = `${done}/${total} complete`;
+  section.querySelector(".platform-bar.wide span").style.width = `${pct}%`;
 }
 
 function focusPlatform(id) {
@@ -212,7 +231,9 @@ function setupPasswordTool() {
     } catch (err) {
       breachResult.className = "breach-result warn";
       breachResult.textContent =
-        "Couldn't reach the breach database. Your password was never sent anywhere; try again when online.";
+        err && err.code === "insecure-context"
+          ? "Breach checking needs a secure connection (HTTPS or localhost). Your password was never sent anywhere."
+          : "Couldn't reach the breach database. Your password was never sent anywhere; try again when online.";
     }
   });
 
@@ -244,7 +265,7 @@ function setupPhishingTool() {
 
     const items = r.findings.map((f) => {
       const icon = f.level === "ok" ? "✓" : f.level === "bad" ? "✕" : "!";
-      return `<li class="finding ${f.level}"><span>${icon}</span>${f.text}</li>`;
+      return `<li class="finding ${esc(f.level)}"><span>${icon}</span>${esc(f.text)}</li>`;
     }).join("");
 
     result.innerHTML = `
@@ -263,8 +284,8 @@ function renderTips() {
   const container = document.getElementById("tips-container");
   container.innerHTML = TIPS.map((t) => `
     <article class="tip">
-      <h3>${t.title}</h3>
-      <p>${t.body}</p>
+      <h3>${esc(t.title)}</h3>
+      <p>${esc(t.body)}</p>
     </article>
   `).join("");
 }

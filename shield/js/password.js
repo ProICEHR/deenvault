@@ -13,6 +13,22 @@ const COMMON_PASSWORDS = new Set([
   "monkey", "dragon", "football", "sunshine", "princess", "login",
 ]);
 
+// Predictable base words frequently used in passwords. A diverse-looking
+// password built on one of these (e.g. "Spring2024!") is still easy to guess,
+// so we penalize it even though its character mix implies high entropy.
+const COMMON_WORDS = new Set([
+  "spring", "summer", "autumn", "winter", "january", "february", "march",
+  "april", "june", "july", "august", "september", "october", "november",
+  "december", "monday", "friday", "password", "passw0rd", "welcome", "admin",
+  "login", "letmein", "qwerty", "dragon", "monkey", "football", "baseball",
+  "basketball", "soccer", "hockey", "master", "shadow", "superman", "batman",
+  "iloveyou", "princess", "sunshine", "flower", "freedom", "whatever", "trustno",
+  "ninja", "hunter", "ranger", "computer", "internet", "google", "facebook",
+  "samsung", "michael", "jennifer", "jordan", "michelle", "daniel", "ashley",
+  "amanda", "andrew", "matthew", "joshua", "hello", "secret", "money", "love",
+  "god", "jesus", "ginger", "buster", "tigger", "charlie", "thomas", "robert",
+]);
+
 /**
  * Estimate password strength. Returns { score 0-4, label, entropyBits, feedback[] }.
  */
@@ -32,23 +48,49 @@ function analyzePassword(pw) {
     };
   }
 
-  // Character-pool entropy estimate.
+  // Character-pool entropy estimate (an upper bound — it assumes randomness).
   let pool = 0;
   if (/[a-z]/.test(pw)) pool += 26;
   if (/[A-Z]/.test(pw)) pool += 26;
   if (/[0-9]/.test(pw)) pool += 10;
   if (/[^A-Za-z0-9]/.test(pw)) pool += 33;
-  const entropyBits = Math.round(pw.length * Math.log2(pool || 1));
+  const rawBits = Math.round(pw.length * Math.log2(pool || 1));
 
   if (pw.length < 8) feedback.push("Use at least 12 characters — longer is stronger.");
   else if (pw.length < 12) feedback.push("Aim for 12+ characters for solid protection.");
   if (!/[a-z]/.test(pw) || !/[A-Z]/.test(pw)) feedback.push("Mix upper and lower case letters.");
   if (!/[0-9]/.test(pw)) feedback.push("Add some numbers.");
   if (!/[^A-Za-z0-9]/.test(pw)) feedback.push("Add a symbol (e.g. ! ? # $).");
-  if (/(.)\1{2,}/.test(pw)) feedback.push("Avoid repeating the same character (aaa, 111).");
+
+  // Predictability penalties: the pool estimate overrates passwords with
+  // guessable structure, so we subtract bits when patterns are detected.
+  let penalty = 0;
+  const letters = lower.replace(/[^a-z]/g, "");
+  if (letters.length >= 3 && COMMON_WORDS.has(letters)) {
+    penalty += 26;
+    feedback.push("Built on a common word — predictable even with added digits or symbols.");
+  }
+  if (/(19|20)\d{2}/.test(pw)) {
+    penalty += 12;
+    feedback.push("Contains a year, which barely adds guessing difficulty.");
+  }
+  if (/(.)\1{2,}/.test(pw)) {
+    penalty += 10;
+    feedback.push("Avoid repeating the same character (aaa, 111).");
+  }
   if (/(?:0123|1234|2345|3456|4567|5678|6789|abcd|qwer)/i.test(pw)) {
+    penalty += 12;
     feedback.push("Avoid sequences like 1234 or qwerty.");
   }
+  // Low character diversity (e.g. "aaaaaaaa") makes the pool estimate
+  // wildly optimistic; scale the penalty with how repetitive it is.
+  const uniqueRatio = new Set(pw).size / pw.length;
+  if (pw.length >= 6 && uniqueRatio <= 0.4) {
+    penalty += Math.round(rawBits * (0.6 - uniqueRatio));
+    feedback.push("Too few distinct characters — it's far weaker than its length suggests.");
+  }
+
+  const entropyBits = Math.max(0, rawBits - penalty);
 
   let score;
   if (entropyBits < 28) score = 0;
@@ -78,6 +120,13 @@ async function sha1Hex(text) {
  * Returns { found: boolean, count: number } or throws on network failure.
  */
 async function checkBreach(pw) {
+  // Web Crypto's SubtleCrypto is only available in a secure context
+  // (HTTPS or localhost). Fail with a clear, specific signal otherwise.
+  if (!self.isSecureContext || !self.crypto || !crypto.subtle) {
+    const e = new Error("insecure-context");
+    e.code = "insecure-context";
+    throw e;
+  }
   const hash = await sha1Hex(pw);
   const prefix = hash.slice(0, 5);
   const suffix = hash.slice(5);

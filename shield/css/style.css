@@ -170,6 +170,7 @@ input:focus { border-color: var(--brand); }
   width: 20px; height: 20px; border: 2px solid var(--border); border-radius: 6px; flex-shrink: 0;
   margin-top: 1px; display: grid; place-items: center; transition: all 0.15s;
 }
+.task input:focus-visible + .checkmark { outline: 2px solid var(--brand); outline-offset: 2px; }
 .task input:checked + .checkmark { background: var(--ok); border-color: var(--ok); }
 .task input:checked + .checkmark::after {
   content: ""; width: 5px; height: 9px; border: solid #fff; border-width: 0 2px 2px 0;

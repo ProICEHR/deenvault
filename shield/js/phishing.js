@@ -28,9 +28,29 @@ const URL_SHORTENERS = [
   "buff.ly", "cutt.ly", "rebrand.ly", "shorturl.at",
 ];
 
+// Common multi-label public suffixes, so "example.co.uk" is treated as one
+// registrable domain rather than "co.uk". This is a pragmatic subset of the
+// Public Suffix List covering the suffixes most likely to appear here.
+const MULTI_SUFFIXES = new Set([
+  "co.uk", "org.uk", "gov.uk", "ac.uk", "me.uk", "ltd.uk", "plc.uk", "net.uk",
+  "com.au", "net.au", "org.au", "co.nz", "co.za", "co.in", "co.id", "co.th",
+  "co.jp", "or.jp", "ne.jp", "co.kr", "com.br", "com.mx", "com.ar", "com.co",
+  "com.pe", "com.tr", "com.sg", "com.hk", "com.tw", "com.cn", "com.my",
+  "com.ph", "com.vn", "com.ua", "com.ng", "com.sa", "com.eg",
+]);
+
 function registrableDomain(hostname) {
   const parts = hostname.split(".");
-  return parts.slice(-2).join(".");
+  if (parts.length <= 2) return hostname;
+  const lastTwo = parts.slice(-2).join(".");
+  if (MULTI_SUFFIXES.has(lastTwo)) return parts.slice(-3).join(".");
+  return lastTwo;
+}
+
+// Match a brand name only at label/separator boundaries, so "snapple.com"
+// does not count as containing "apple" while "login-facebook.com" does.
+function brandPresent(host, brand) {
+  return new RegExp(`(^|[.\\-_\\d])${brand}([.\\-_\\d]|$)`).test(host);
 }
 
 /**
@@ -72,10 +92,10 @@ function inspectUrl(raw) {
     findings.push({ level: "bad", text: "Uses a raw IP address instead of a domain name — common in phishing." });
   }
 
-  // '@' in URL hides the real destination
-  if (raw.includes("@")) {
+  // Userinfo ('user@host') can hide the real destination behind the '@'
+  if (url.username || url.password) {
     score += 30;
-    findings.push({ level: "bad", text: "Contains '@', which can hide the real destination after it." });
+    findings.push({ level: "bad", text: "Has credentials before an '@', which can hide the real destination after it." });
   }
 
   // Punycode / homograph
@@ -84,17 +104,26 @@ function inspectUrl(raw) {
     findings.push({ level: "bad", text: "Uses punycode (xn--), which can disguise look-alike characters." });
   }
 
-  // Brand impersonation: a brand name appears but the root domain isn't the real one.
+  // Brand impersonation. A brand is genuinely impersonated when the brand name
+  // appears in the host but it is NOT the main label of the registrable domain
+  // (the label just left of the public suffix). "facebook.evil.com" impersonates;
+  // "facebook.com" and "google.co.uk" (brand IS the main label) do not.
   const legit = LEGIT_DOMAINS.includes(regDomain);
-  const brandInHost = KNOWN_BRANDS.find((b) => host.includes(b));
-  if (brandInHost && !legit) {
+  const mainLabel = regDomain.split(".")[0];
+  const brandInHost = KNOWN_BRANDS.find((b) => brandPresent(host, b));
+  if (legit) {
+    findings.push({ level: "ok", text: `Root domain "${regDomain}" matches a known official site.` });
+  } else if (brandInHost && mainLabel !== brandInHost) {
     score += 40;
     findings.push({
       level: "bad",
       text: `Mentions "${brandInHost}" but the real domain is "${regDomain}", not the official site.`,
     });
-  } else if (legit) {
-    findings.push({ level: "ok", text: `Root domain "${regDomain}" matches a known official site.` });
+  } else if (brandInHost) {
+    findings.push({
+      level: "warn",
+      text: `Domain's main label is "${brandInHost}" but on an unverified TLD ("${regDomain}"). Confirm it's the official site for your region.`,
+    });
   }
 
   // URL shorteners hide the destination
