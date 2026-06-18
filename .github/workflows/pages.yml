@@ -23,6 +23,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+        with:
+          # Auto-enable Pages with the GitHub Actions source if not already set up.
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           # Publish the repo root: the Meetus page stays at /, SocialShield at /shield/.
