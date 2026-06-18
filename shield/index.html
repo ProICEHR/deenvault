@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SocialShield — Protect your social media accounts</title>
+  <meta name="description" content="A free, private toolkit to harden your social media accounts: security checklists, a password strength &amp; breach checker, and a phishing link inspector.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🛡️</span>
+      <span>SocialShield <small>Protect your accounts</small></span>
+    </div>
+    <input type="checkbox" id="nav-toggle">
+    <label class="hamburger" for="nav-toggle">☰</label>
+    <nav class="links">
+      <a href="#" class="nav-link" data-view="dashboard">Dashboard</a>
+      <a href="#" class="nav-link" data-view="checklist">Checklist</a>
+      <a href="#" class="nav-link" data-view="password">Password</a>
+      <a href="#" class="nav-link" data-view="phishing">Link Check</a>
+      <a href="#" class="nav-link" data-view="learn">Learn</a>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Dashboard -->
+    <section class="view" id="view-dashboard">
+      <h1 class="section-title">Your security dashboard</h1>
+      <p class="section-sub">Track how well your social media accounts are protected.</p>
+
+      <div class="card score-card">
+        <div class="score-ring-wrap">
+          <svg width="130" height="130" viewBox="0 0 130 130">
+            <circle class="score-ring-bg" cx="65" cy="65" r="52"></circle>
+            <circle id="score-ring" cx="65" cy="65" r="52"></circle>
+          </svg>
+          <div class="score-center"><span id="score-pct">0%</span></div>
+        </div>
+        <div class="score-info">
+          <h2>Protection score</h2>
+          <div id="score-detail">0 of 0 protection steps completed</div>
+          <p id="score-message"></p>
+        </div>
+      </div>
+
+      <div class="grid-title">Accounts</div>
+      <div id="platform-summary"></div>
+
+      <div class="cta-row">
+        <button class="btn primary" data-goto="checklist">Continue the checklist</button>
+        <button class="btn" data-goto="password">Check a password</button>
+        <button class="btn" data-goto="phishing">Inspect a link</button>
+      </div>
+    </section>
+
+    <!-- Checklist -->
+    <section class="view" id="view-checklist">
+      <h1 class="section-title">Security checklist</h1>
+      <p class="section-sub">Work through each account. Your progress is saved on this device only.</p>
+      <div id="checklist-container"></div>
+    </section>
+
+    <!-- Password -->
+    <section class="view" id="view-password">
+      <h1 class="section-title">Password checker</h1>
+      <p class="section-sub">Test how strong a password is and whether it has leaked in a known breach.</p>
+
+      <div class="card tool-card">
+        <div class="field">
+          <input type="password" id="pw-input" placeholder="Type a password to test" autocomplete="off" spellcheck="false">
+          <button class="btn" id="pw-toggle" type="button">Show</button>
+        </div>
+        <div class="pw-meter"><div id="pw-meter-fill"></div></div>
+        <div class="pw-status">
+          <span id="pw-label"></span>
+          <span id="pw-entropy" class="muted"></span>
+        </div>
+        <ul id="pw-feedback"></ul>
+        <button class="btn primary" id="pw-breach-btn" type="button" disabled style="margin-top:14px">
+          Check if it's been breached
+        </button>
+        <div id="pw-breach-result" class="breach-result"></div>
+        <div class="privacy-note">
+          🔒 Your password never leaves this page. The breach check sends only the first 5 characters
+          of its SHA-1 hash (k-anonymity) to the HaveIBeenPwned service.
+        </div>
+      </div>
+    </section>
+
+    <!-- Phishing -->
+    <section class="view" id="view-phishing">
+      <h1 class="section-title">Phishing link inspector</h1>
+      <p class="section-sub">Paste a suspicious link to spot common signs of a fake login page.</p>
+
+      <div class="card tool-card">
+        <div class="field">
+          <input type="text" id="url-input" placeholder="e.g. login-facebook.secure-update.com" autocomplete="off" spellcheck="false">
+          <button class="btn primary" id="url-btn" type="button">Inspect</button>
+        </div>
+        <div id="url-result"></div>
+        <div class="privacy-note">
+          🔒 Analysis runs entirely in your browser — nothing is uploaded. A "likely safe" result is not
+          a guarantee; when in doubt, type the address yourself instead of clicking.
+        </div>
+      </div>
+    </section>
+
+    <!-- Learn -->
+    <section class="view" id="view-learn">
+      <h1 class="section-title">Stay protected</h1>
+      <p class="section-sub">Core habits that keep attackers out of your accounts.</p>
+      <div id="tips-container"></div>
+    </section>
+  </main>
+
+  <footer>
+    SocialShield · Runs entirely in your browser · No tracking, no accounts, no data leaves your device.
+  </footer>
+
+  <script src="js/data.js"></script>
+  <script src="js/password.js"></script>
+  <script src="js/phishing.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
