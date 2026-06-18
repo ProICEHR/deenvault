@@ -14,7 +14,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Syntax-check all scripts
         run: |
@@ -23,4 +23,4 @@ jobs:
           done
 
       - name: Run logic tests
-        run: node --test "shield/tests/*.test.js"
+        run: node --test shield/tests/*.test.js
